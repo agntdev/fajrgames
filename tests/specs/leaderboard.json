@@ -1,0 +1,8 @@
+[
+  {
+    "name": "🏆 Leaderboard shows an empty-state invitation",
+    "steps": [
+      { "send": { "callback": "leaderboard:view" }, "expect": [{ "method": "sendMessage", "payload": { "text": "🏆 Top collectors · all-time\n1. Test · 0 value" } }] }
+    ]
+  }
+]

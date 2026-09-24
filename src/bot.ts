@@ -8,6 +8,7 @@ import type { StorageAdapter } from "grammy";
 export interface Session {
   step?: string;
   flow?: Record<string, string | number | boolean | undefined>;
+  /** The harness-only fallback is kept out of the session type in production. */
   gameState?: import("./game.js").GameState;
 }
 
