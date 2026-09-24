@@ -1,8 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { addAudit, withState } from "../game.js";
-import { adminChatId, isOwner, requireOwner, inlineButton, inlineKeyboard, registerMainMenuItem, type OwnerAwareCtx } from "../toolkit/index.js";
-registerMainMenuItem({ label: "🛠 Admin", data: "admin:menu", order: 90 });
+import { addAudit, addItem, isValidRarity, withState } from "../game.js";
+import { adminChatId, isOwner, requireOwner, inlineButton, inlineKeyboard, type OwnerAwareCtx } from "../toolkit/index.js";
 const composer = new Composer<Ctx>();
 const ownerCtx = (ctx: Ctx): OwnerAwareCtx => ctx as unknown as OwnerAwareCtx;
 composer.callbackQuery("admin:menu", async (ctx) => { await ctx.answerCallbackQuery(); if (!(await requireOwner(ownerCtx(ctx)))) return; await ctx.reply("Owner desk is open. Type `pause boxes`, `resume boxes`, `pause trading`, or `resume trading` to control play.", { reply_markup: inlineKeyboard([[inlineButton("📜 Recent audit", "admin:audit")], [inlineButton("⬅️ Back", "menu:main")]]) }); });
@@ -10,19 +9,27 @@ composer.callbackQuery("admin:audit", async (ctx) => { await ctx.answerCallbackQ
 composer.on("message:text", async (ctx, next) => { const text = ctx.message.text.trim().toLowerCase(); if (!/^(pause|resume)\s+(boxes|trading|daily)$/.test(text)) return next(); if (!isOwner(ownerCtx(ctx))) { await requireOwner(ownerCtx(ctx)); return; } await withState(ctx, (state, user) => { const [, verb, feature] = text.match(/^(pause|resume)\s+(boxes|trading|daily)$/) ?? []; state.paused[feature] = verb === "pause"; addAudit(state, user.id, "ADMIN_FEATURE", `${verb}:${feature}`); return ctx.reply(`${feature[0].toUpperCase()}${feature.slice(1)} are ${verb === "pause" ? "paused" : "back in play"}.`); }); });
 composer.on("message:text", async (ctx, next) => {
   const text = ctx.message.text.trim();
-  if (!/^(add|delete|grant)\s+/i.test(text)) return next();
+  if (!/^(add|edit|delete|grant|remove)\s+/i.test(text)) return next();
   if (!(await requireOwner(ownerCtx(ctx)))) return;
   await withState(ctx, (state, user) => {
     const addItemMatch = text.match(/^add item\s+([^|]+)\|([^|]+)\|(Common|Rare|Epic|Legendary)\|(\d+)$/i);
     if (addItemMatch) { const [, itemId, name, rarity, value] = addItemMatch; state.items[itemId.trim()] = { id: itemId.trim(), name: name.trim(), rarity: rarity as "Common" | "Rare" | "Epic" | "Legendary", value: Number(value), description: "A fresh addition to the collection.", tradable: true, unique: false }; addAudit(state, user.id, "ADMIN_ITEM_CREATED", itemId.trim()); return ctx.reply("Item added to the catalogue."); }
     const addBoxMatch = text.match(/^add box\s+([^|]+)\|([^|]+)\|(\d+)\|(.+)$/i);
     if (addBoxMatch) { const [, boxId, name, price, dropsText] = addBoxMatch; const drops = dropsText.split(",").map((part) => { const [itemId, probability] = part.split(":"); return { itemId: itemId.trim(), probability: Number(probability) }; }); const total = drops.reduce((sum, drop) => sum + drop.probability, 0); if (Math.abs(total - 1) > 0.0001 || drops.some((drop) => !state.items[drop.itemId] || drop.probability < 0)) return ctx.reply("That drop table needs real item ids and probabilities that add up to 1.0."); state.boxes[boxId.trim()] = { id: boxId.trim(), name: name.trim(), price: Number(price), drops }; addAudit(state, user.id, "ADMIN_BOX_CREATED", boxId.trim()); return ctx.reply("Box added to the catalogue."); }
+    const editItemMatch = text.match(/^edit item\s+([^|]+)\|([^|]+)\|(Common|Rare|Epic|Legendary)\|(\d+)\|(.+)$/i);
+    if (editItemMatch) { const [, itemId, name, rarity, value, description] = editItemMatch; const item = state.items[itemId.trim()]; if (!item) return ctx.reply("I couldn't find that catalogue entry."); if (!isValidRarity(rarity)) return ctx.reply("Rarity must be Common, Rare, Epic, or Legendary."); Object.assign(item, { name: name.trim(), rarity, value: Number(value), description: description.trim() }); addAudit(state, user.id, "ADMIN_ITEM_EDITED", item.id); return ctx.reply("Item updated and logged."); }
+    const editBoxMatch = text.match(/^edit box\s+([^|]+)\|(\d+)\|(.+)$/i);
+    if (editBoxMatch) { const [, boxId, price, dropsText] = editBoxMatch; const box = state.boxes[boxId.trim()]; if (!box) return ctx.reply("I couldn't find that box."); const drops = dropsText.split(",").map((part) => { const [itemId, probability] = part.split(":"); return { itemId: itemId.trim(), probability: Number(probability) }; }); const total = drops.reduce((sum, drop) => sum + drop.probability, 0); if (Math.abs(total - 1) > 0.0001 || drops.some((drop) => !state.items[drop.itemId] || !Number.isFinite(drop.probability) || drop.probability < 0)) return ctx.reply("That drop table needs real item ids and probabilities that add up to 1.0."); box.price = Number(price); box.drops = drops; addAudit(state, user.id, "ADMIN_BOX_EDITED", box.id); return ctx.reply("Box updated and logged."); }
     const deleteMatch = text.match(/^delete (item|box)\s+(.+)$/i);
     if (deleteMatch) { const [, kind, key] = deleteMatch; const collection = kind.toLowerCase() === "item" ? state.items : state.boxes; if (!collection[key.trim()]) return ctx.reply("I couldn't find that catalogue entry."); delete collection[key.trim()]; addAudit(state, user.id, "ADMIN_ENTRY_DELETED", `${kind}:${key.trim()}`); return ctx.reply("Catalogue entry deleted."); }
     const grantMatch = text.match(/^grant gems\s+@?([^\s]+)\s+(\d+)$/i);
     if (grantMatch) { const target = Object.values(state.users).find((player) => player.username?.toLowerCase() === grantMatch[1].toLowerCase()); if (!target) return ctx.reply("That player needs to tap /start before you can grant Gems."); target.gems += Number(grantMatch[2]); addAudit(state, user.id, "ADMIN_GEMS_GRANTED", `${target.id}:${grantMatch[2]}`); return ctx.reply("Gems granted and logged."); }
+    const removeMatch = text.match(/^remove gems\s+@?([^\s]+)\s+(\d+)$/i);
+    if (removeMatch) { const target = Object.values(state.users).find((player) => player.username?.toLowerCase() === removeMatch[1].toLowerCase()); const amount = Number(removeMatch[2]); if (!target) return ctx.reply("That player needs to tap /start before you can change their Gems."); if (target.gems < amount) return ctx.reply("That player doesn't have that many Gems."); target.gems -= amount; addAudit(state, user.id, "ADMIN_GEMS_REMOVED", `${target.id}:${amount}`); return ctx.reply("Gems removed and logged."); }
+    const grantItemMatch = text.match(/^grant item\s+@?([^\s]+)\s+([^\s]+)$/i);
+    if (grantItemMatch) { const target = Object.values(state.users).find((player) => player.username?.toLowerCase() === grantItemMatch[1].toLowerCase()); const item = state.items[grantItemMatch[2]]; if (!target) return ctx.reply("That player needs to tap /start before you can grant an item."); if (!item) return ctx.reply("I couldn't find that item."); addItem(state, target, item); target.collectionValue += item.value; addAudit(state, user.id, "ADMIN_ITEM_GRANTED", `${target.id}:${item.id}`); return ctx.reply("Item granted and logged."); }
     return ctx.reply("I couldn't parse that owner action. Try add item, add box, delete item, delete box, or grant gems.");
   });
 });
-composer.callbackQuery("admin:status", async (ctx) => { await ctx.answerCallbackQuery(); const owner = adminChatId(ctx as unknown as { env?: Record<string, unknown> }); await ctx.reply(owner ? "Owner controls are ready." : "Owner access isn't set up yet."); });
+composer.callbackQuery("admin:status", async (ctx) => { await ctx.answerCallbackQuery(); if (!(await requireOwner(ownerCtx(ctx)))) return; const owner = adminChatId(ctx as unknown as { env?: Record<string, unknown> }); await ctx.reply(owner ? "Owner controls are ready." : "Owner access isn't set up yet."); });
 export default composer;

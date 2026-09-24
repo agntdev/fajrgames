@@ -51,12 +51,15 @@ composer.callbackQuery(/^boxes:confirm:(.+)$/, async (ctx) => {
     if (user.gems < box.price) return ctx.editMessageText("You don't have enough Gems for that one.", { reply_markup: inlineKeyboard([[back]]) });
     const item = state.items[choose(box)];
     if (!item) return ctx.editMessageText("That box needs a quick tune-up. Try again soon.", { reply_markup: inlineKeyboard([[back]]) });
-    user.boxOpens.push(current); user.gems -= box.price; user.boxesOpened += 1; user.xp += item.value;
+    user.boxOpens.push(current); user.gems -= box.price; user.boxesOpened += 1; user.lastOpened = now().toISOString(); user.xp += item.value;
     addItem(state, user, item); user.collectionValue += item.value;
     addAudit(state, user.id, "BOX_OPENED", `${box.id}:${item.id}`);
     await ctx.editMessageText("🎁 Opening LuckyBox...", { reply_markup: inlineKeyboard([]) });
     await ctx.reply("🔮 Finding your reward...");
-    return ctx.reply(`✨ You got ${item.name}!\n${item.rarity} · ${item.description}\nGems left: ${user.gems}`, { reply_markup: inlineKeyboard([[inlineButton("🎁 Open another", `boxes:buy:${box.id}`), inlineButton("🎒 Inventory", "inventory:view")], [back]]) });
+    const badge = item.rarity === "Legendary" ? "🟡 LEGENDARY" : item.rarity === "Epic" ? "🟣 Epic" : item.rarity === "Rare" ? "🔵 Rare" : "⚪ Common";
+    const reward = `${item.rarity === "Legendary" ? "🌟 " : ""}✨ You got ${item.name}!\n${badge} · ${item.description}\nGems left: ${user.gems}`;
+    if (item.imageUrl) await ctx.replyWithPhoto(item.imageUrl, { caption: reward });
+    return ctx.reply(reward, { reply_markup: inlineKeyboard([[inlineButton("🎁 Open another", `boxes:buy:${box.id}`), inlineButton("🎒 Inventory", "inventory:view")], [back]]) });
   });
 });
 export default composer;
