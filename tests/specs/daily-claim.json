@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Claim daily Gems and update streak"
+              "text": "✨ You got 15 Gems! Streak: 1 day. Come back tomorrow for another boost."
             }
           }
         ],

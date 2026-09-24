@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Browse available boxes and start a purchase/open flow"
+              "text": "Pick a box and see what might pop out!"
             }
           }
         ],

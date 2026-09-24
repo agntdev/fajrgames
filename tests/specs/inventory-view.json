@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Open paginated inventory with filters and item actions"
+              "text": "Your collection is empty — open a LuckyBox to find your first treasure!"
             }
           }
         ],

@@ -10,7 +10,8 @@ const composer = new Composer<Ctx>();
 
 const HELP =
   "ℹ️ Tap /start to open the menu, then pick what you want from the buttons.\n\n" +
-  "Everything in this bot is reachable by tapping — you don't need to remember any commands.";
+  "Open LuckyBoxes, grow your collection, claim Gems, and trade safely — both players confirm before anything moves.\n\n" +
+  "Your Gems and treasures are saved. Need a hand? Ask the bot owner.";
 
 const backToMenu = inlineKeyboard([[inlineButton("⬅️ Back to menu", "menu:main")]]);
 
