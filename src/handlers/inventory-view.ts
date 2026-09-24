@@ -1,17 +1,12 @@
 import { Composer } from "grammy";
-
-// SCAFFOLD — generated from the bot blueprint BEFORE the agent runs.
-// Keep a LIVE registration (.command / .callbackQuery / …) so this feature is
-// never an empty stub. Replace the reply body with real logic + copy; if you
-// change the user-facing text, update tests/specs to match EXACTLY.
-// Do NOT rewrite src/bot.ts — buildBot() already auto-loads this module.
-// Menu: wire this into /start via registerMainMenuItem({ label: "🎒 Inventory", data: "inventory:view" }) if the toolkit exposes it.
-
-const composer = new Composer();
-
-composer.callbackQuery("inventory:view", async (ctx) => {
-  await ctx.answerCallbackQuery();
-  await ctx.reply("Open paginated inventory with filters and item actions");
-});
-
+import type { Ctx } from "../bot.js";
+import { inventoryFor, withState } from "../game.js";
+import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
+registerMainMenuItem({ label: "🎒 Inventory", data: "inventory:view", order: 20 });
+const composer = new Composer<Ctx>();
+async function show(ctx: Ctx, rarity?: string) { await withState(ctx, (state, user) => { const entries = inventoryFor(state, user.id).filter((entry) => !rarity || state.items[entry.itemId]?.rarity === rarity); if (!entries.length) return ctx.reply("Your collection is empty — open a LuckyBox to find your first treasure!", { reply_markup: inlineKeyboard([[inlineButton("🎁 LuckyBox", "boxes:list")], [inlineButton("⬅️ Back to menu", "menu:main")]]) }); const rows = entries.map((entry) => { const item = state.items[entry.itemId]; return [inlineButton(`${item?.rarity === "Legendary" ? "👑" : "✨"} ${item?.name ?? "Unknown treasure"} ×${entry.quantity}`, `inventory:item:${entry.id}`)]; }); rows.push([inlineButton("All", "inventory:view"), inlineButton("Rare", "inventory:filter:Rare")], [inlineButton("Epic", "inventory:filter:Epic"), inlineButton("Legendary", "inventory:filter:Legendary")], [inlineButton("⬅️ Back", "menu:main")]); return ctx.reply(`Your treasures · ${user.collectionValue} value`, { reply_markup: inlineKeyboard(rows) }); }); }
+composer.callbackQuery("inventory:view", async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx); });
+composer.callbackQuery(/^inventory:filter:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx, ctx.match[1]); });
+composer.callbackQuery(/^inventory:item:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await withState(ctx, (state) => { const entry = state.inventory[ctx.match[1]]; const item = entry && state.items[entry.itemId]; if (!entry || !item) return ctx.reply("That treasure isn't in your collection anymore."); return ctx.reply(`${item.name}\n${item.rarity} · ${item.description}\nQuantity: ${entry.quantity}${entry.serials.length ? `\nSerials: ${entry.serials.length}` : ""}\n${item.tradable ? "Tradable" : "Not tradable"}`, { reply_markup: inlineKeyboard([[inlineButton("🔄 Offer for trade", `trade:item:${entry.id}`), inlineButton("📣 Share", `inventory:share:${entry.id}`)], [inlineButton("⬅️ Inventory", "inventory:view")]]) }); }); });
+composer.callbackQuery(/^inventory:share:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("A shiny treasure from my FajrGames collection ✨"); });
 export default composer;

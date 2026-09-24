@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Start a two-step secure trade with another user"
+              "text": "Who should get your offer? Send their @username, then I’ll show you the trade details."
             }
           }
         ],
