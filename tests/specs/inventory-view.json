@@ -1,0 +1,20 @@
+[
+  {
+    "name": "🎒 Inventory",
+    "steps": [
+      {
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Open paginated inventory with filters and item actions"
+            }
+          }
+        ],
+        "send": {
+          "callback": "inventory:view"
+        }
+      }
+    ]
+  }
+]
